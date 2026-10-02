@@ -2,14 +2,14 @@
 // market.json の rows は [日付, 日中高値, 終値] の配列。
 
 const STATUS = [
-  { id: "above", label: "突破済み", test: (r) => r > 100 },
-  { id: "near", label: "近い", test: (r) => r >= 95 },
-  { id: "mid", label: "中間", test: (r) => r >= 90 },
-  { id: "far", label: "遠い", test: () => true },
+  { id: "above", label: "突破済み", range: "100%超", test: (r) => r > 100 },
+  { id: "near", label: "近い", range: "95〜100%", test: (r) => r >= 95 },
+  { id: "mid", label: "中間", range: "90%以上95%未満", test: (r) => r >= 90 },
+  { id: "far", label: "遠い", range: "90%未満", test: () => true },
 ];
 const statusOf = (ratio) => STATUS.find((s) => s.test(ratio));
 
-const state = { mode: "ref", query: "", statuses: new Set(STATUS.map((s) => s.id)) };
+const state = { mode: "ref", query: "" };
 let data, analyzed, chart;
 
 const $ = (id) => document.getElementById(id);
@@ -18,6 +18,7 @@ const esc = (v) => String(v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&
 // ---------- 書式 ----------
 const ymd = (d) => { const [y, m, day] = d.split("-").map(Number); return { y, m, day }; };
 const fmtDateLong = (d) => { const { y, m, day } = ymd(d); return `${y}年${m}月${day}日`; };
+const fmtMonthDay = (d) => { const { m, day } = ymd(d); return `${m}月${day}日`; };
 const fmtDateShort = (d) => d.slice(5).replace("-", "/");
 const fmtPrice = (v, s) => {
   const digits = s.market === "JP" && s.kind === "stock" ? 0 : 2;
@@ -27,6 +28,9 @@ const fmtRatio = (r, s) => `${r.toFixed(s.kind === "index" ? 2 : 1)}%`;
 const fmtSigned = (v) => `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
 const unitLabel = (s) => (s.kind === "index" ? "指数ポイント" : s.currency === "JPY" ? "円" : "米ドル");
 const marketLabel = (s) => ({ US: "米国", JP: "日本" })[s.market] ?? s.market;
+// 一覧での表示名：米国株はティッカー、日本株は銘柄名
+const shortName = (s) => (s.kind === "stock" && s.market === "US" ? s.symbol : s.name);
+const ratioOf = (a) => (state.mode === "ref" ? a.ref.ratio : a.ytd.ratio);
 
 // ---------- 計算 ----------
 function analyze(s, settings) {
@@ -51,10 +55,12 @@ function analyze(s, settings) {
   let streak = 0;
   for (let i = rows.length - 1; i >= 0 && rows[i][0] > settings.refEnd && rows[i][2] > refRow[1]; i--) streak++;
 
+  const first = rows.find((r) => r[0] >= settings.yearStart);
   return {
     s,
     close,
     date: last[0],
+    ytdChange: first ? (close / first[2] - 1) * 100 : null,
     ref: {
       high: refRow[1],
       date: refRow[0],
@@ -72,13 +78,7 @@ function analyze(s, settings) {
   };
 }
 
-// ---------- 表示部品 ----------
-function meter(ratio) {
-  // 60%〜120% を横幅いっぱいに割り当て、100% の位置に目印を置く
-  const pos = (v) => Math.min(100, Math.max(0, ((v - 60) / 60) * 100));
-  return `<div class="meter" aria-hidden="true"><div class="meter-fill" style="width:${pos(ratio)}%"></div><div class="meter-mark" style="left:${pos(100)}%"></div></div>`;
-}
-
+// ---------- 詳細パネル ----------
 function sparkline(a, settings) {
   const pts = a.s.rows.filter((r) => r[0] >= settings.yearStart);
   const level = state.mode === "ref" ? a.ref.high : a.ytd.high;
@@ -113,8 +113,7 @@ function detailHtml(a, settings) {
   if (state.mode === "ref") {
     const r = a.ref;
     if (r.firstHigh || r.firstClose) {
-      const parts = [`日中 ${r.firstHigh ? fmtDateShort(r.firstHigh) : "なし"}`, `終値 ${r.firstClose ? fmtDateShort(r.firstClose) : "未突破"}`];
-      note = `${esc(settings.refLabel)}以降の初回突破：${parts.join(" ／ ")}`;
+      note = `${esc(settings.refLabel)}以降の初回突破：日中 ${r.firstHigh ? fmtDateShort(r.firstHigh) : "なし"} ／ 終値 ${r.firstClose ? fmtDateShort(r.firstClose) : "未突破"}`;
       if (r.streak > 0) note += ` · 現在 ${r.streak}日連続で終値が上`;
     } else {
       note = `${esc(settings.refLabel)}以降、日中高値の突破はまだありません`;
@@ -125,8 +124,9 @@ function detailHtml(a, settings) {
       : `年初来高値の記録日：${fmtDateShort(a.ytd.date)}（${a.ytd.daysAgo}営業日前）`;
   }
 
+  const name = s.kind === "stock" ? `${s.name}（${s.symbol}）· ` : "";
   return `<div class="detail">
-    <p class="meta">${esc(s.kind === "stock" ? `${s.name} · ` : "")}${marketLabel(s)} · ${unitLabel(s)}</p>
+    <p class="meta">${esc(name)}${marketLabel(s)} · ${unitLabel(s)}</p>
     <dl>
       <dt>${fmtDateShort(a.date)} 終値</dt><dd>${fmtPrice(a.close, s)}</dd>
       <dt>${highLabel}</dt><dd>${fmtPrice(m.high, s)}<small>${fmtDateShort(m.date)}</small></dd>
@@ -138,26 +138,9 @@ function detailHtml(a, settings) {
   </div>`;
 }
 
-function rowHtml(a, settings, open) {
-  const s = a.s;
-  const ratio = state.mode === "ref" ? a.ref.ratio : a.ytd.ratio;
-  const st = statusOf(ratio);
-  const title = s.kind === "stock" ? `${s.symbol}` : s.name;
-  const sub = s.kind === "stock" ? s.name : marketLabel(s);
-  return `<details class="row st-${st.id}" data-symbol="${esc(s.symbol)}"${open ? " open" : ""}>
-    <summary>
-      <div class="row-name"><strong>${esc(title)}</strong><span>${esc(sub)}</span></div>
-      ${meter(ratio)}
-      <span class="ratio num">${fmtRatio(ratio, s)}</span>
-      <span class="badge">${st.label}</span>
-    </summary>
-    ${detailHtml(a, settings)}
-  </details>`;
-}
-
 // ---------- 描画 ----------
 function openSymbols() {
-  return new Set([...document.querySelectorAll("details.row[open]")].map((d) => d.dataset.symbol));
+  return new Set([...document.querySelectorAll("details[open]")].map((d) => d.dataset.symbol).filter(Boolean));
 }
 
 function renderHeader() {
@@ -170,61 +153,86 @@ function renderHeader() {
   document.title = `${$("title").textContent}｜${settings.subtitle}`;
   for (const b of document.querySelectorAll(".tabs button")) b.setAttribute("aria-selected", String(b.dataset.mode === state.mode));
 
-  const asOf = fmtDateLong(data.asOf);
+  const asOf = fmtMonthDay(data.asOf);
   $("formula").innerHTML = isRef
-    ? `<p>比較する高値：<b>${fmtDateLong(settings.refStart)}〜${fmtDateLong(settings.refEnd).replace(/^\d+年/, "")}</b> の日中高値の最高値 ＝ 100%</p>
-       <p>奪還率 ＝ ${asOf}の終値 ÷ ${esc(settings.refLabel)}の日中高値 × 100</p>`
-    : `<p>比較する高値：<b>${fmtDateLong(settings.yearStart)}から比較日の前営業日まで</b> の日中高値の最高値 ＝ 100%</p>
-       <p>奪還率 ＝ ${asOf}の終値 ÷ 年初来高値 × 100（100%超 ＝ 終値で年初来高値を更新）</p>`;
+    ? `<span class="formula-key">${esc(settings.refLabel)}高値 ＝ 100%</span>
+       <span>奪還率 ＝ ${asOf}終値 ÷ ${fmtMonthDay(settings.refStart)}〜${fmtMonthDay(settings.refEnd)}の日中高値の最高値 × 100</span>`
+    : `<span class="formula-key">年初来高値 ＝ 100%</span>
+       <span>奪還率 ＝ ${asOf}終値 ÷ 年初から前営業日までの日中高値の最高値 × 100（100%超＝終値で更新）</span>`;
+  $("index-bars-title").textContent = isRef ? `主要指数の${settings.refLabel}高値に対する現在位置` : "主要指数の年初来高値に対する現在位置";
+  $("index-bars-note").textContent = `${isRef ? `${settings.refLabel}高値` : "年初来高値"} ＝ 100% · ${fmtDateLong(data.asOf)}終値`;
 }
 
-function renderIndices() {
+function renderIndexBars() {
   const open = openSymbols();
-  $("index-rows").innerHTML = analyzed
-    .filter((a) => a.s.kind === "index")
-    .map((a) => rowHtml(a, data.settings, open.has(a.s.symbol)))
-    .join("");
-}
+  const { settings } = data;
+  const max = 110;
+  const pos = (v) => (Math.min(Math.max(v, 0), max) / max) * 100;
+  const items = analyzed.filter((a) => a.s.kind === "index").sort((x, y) => ratioOf(y) - ratioOf(x));
 
-function renderChips() {
-  $("status-chips").innerHTML = STATUS.map(
-    (st) => `<button type="button" class="chip st-${st.id}" data-status="${st.id}" aria-pressed="${state.statuses.has(st.id)}">${st.label}</button>`
-  ).join("");
+  const axis = `<div class="bars-axis" aria-hidden="true"><span></span><div class="bars-scale">
+      <span style="left:0">0%</span><span style="left:${pos(50)}%">50%</span><span class="strong" style="left:${pos(100)}%">100%</span>
+    </div><span class="bars-axis-right">奪還率</span></div>`;
+
+  const rows = items.map((a) => {
+    const r = ratioOf(a);
+    const st = statusOf(r);
+    const diff = r - 100;
+    const sub = diff > 0 ? `超過 +${diff.toFixed(2)}pt` : `あと${(-diff).toFixed(2)}pt`;
+    return `<details class="bar-row st-${st.id}" data-symbol="${esc(a.s.symbol)}"${open.has(a.s.symbol) ? " open" : ""}>
+      <summary>
+        <span class="bar-name">${esc(a.s.name)}</span>
+        <span class="bar-track"><span class="bar-fill" style="width:${pos(r)}%"></span><span class="bar-100" style="left:${pos(100)}%"></span></span>
+        <span class="bar-val"><b class="num">${fmtRatio(r, a.s)}</b><small>${sub}</small></span>
+      </summary>
+      ${detailHtml(a, settings)}
+    </details>`;
+  }).join("");
+
+  $("index-bars").innerHTML = axis + rows;
 }
 
 function renderStocks() {
   const open = openSymbols();
   const { settings } = data;
   const q = state.query.trim().toLowerCase();
-  const ratioOf = (a) => (state.mode === "ref" ? a.ref.ratio : a.ytd.ratio);
-  let shown = 0;
+  const stocks = analyzed.filter((a) => a.s.kind === "stock");
 
+  // 全体の分類別集計
+  const byMarket = new Map();
+  for (const a of stocks) byMarket.set(marketLabel(a.s), (byMarket.get(marketLabel(a.s)) ?? 0) + 1);
+  const markets = [...byMarket].map(([k, n]) => `${k}${n}`).join(" / ");
+  $("stock-total").textContent = `${stocks.length}銘柄 · ${markets}`;
+  $("status-summary").innerHTML = STATUS.map((st) => {
+    const n = stocks.filter((a) => statusOf(ratioOf(a)) === st).length;
+    return `<div class="sum-card st-${st.id}"><div><b>${st.label}</b><small>${st.range}</small></div><span class="num">${n}</span></div>`;
+  }).join("");
+
+  let shown = 0;
   const html = data.groups
     .filter((g) => g.kind === "stock")
     .map((g) => {
-      const all = analyzed.filter((a) => a.s.group === g.id);
-      if (!all.length) return "";
-      const counts = STATUS.map((st) => ({ st, n: all.filter((a) => statusOf(ratioOf(a)) === st).length }));
-      const visible = all
+      const visible = stocks
+        .filter((a) => a.s.group === g.id)
         .filter((a) => !q || a.s.symbol.toLowerCase().includes(q) || a.s.name.toLowerCase().includes(q))
-        .filter((a) => state.statuses.has(statusOf(ratioOf(a)).id))
         .sort((x, y) => ratioOf(y) - ratioOf(x));
       if (!visible.length) return "";
       shown += visible.length;
 
-      const sections = STATUS.map((st) => {
+      const cols = STATUS.map((st) => {
         const items = visible.filter((a) => statusOf(ratioOf(a)) === st);
-        if (!items.length) return "";
-        return `<h3 class="status-head st-${st.id}">${st.label} ${items.length}銘柄</h3>
-          <div class="rows">${items.map((a) => rowHtml(a, settings, open.has(a.s.symbol))).join("")}</div>`;
+        const list = items.length
+          ? items.map((a) => `<details class="item st-${st.id}" data-symbol="${esc(a.s.symbol)}"${open.has(a.s.symbol) ? " open" : ""}>
+              <summary><span class="item-name">${esc(shortName(a.s))}</span><span class="item-val num">${fmtRatio(ratioOf(a), a.s)}</span><span class="plus" aria-hidden="true"></span></summary>
+              ${detailHtml(a, settings)}
+            </details>`).join("")
+          : `<p class="none">該当なし</p>`;
+        return `<div class="col st-${st.id}"><div class="col-head"><b>${st.label}</b><span>${items.length}銘柄</span></div>${list}</div>`;
       }).join("");
 
       return `<div class="group">
-        <div class="group-head"><h2>${esc(g.label)}</h2>
-          <div class="group-counts">${counts.map(({ st, n }) => `<span class="st-${st.id}">${st.label} ${n}</span>`).join("")}</div>
-        </div>
-        <div class="stackbar" aria-hidden="true">${counts.filter((c) => c.n).map(({ st, n }) => `<span class="st-${st.id}" style="flex:${n}"></span>`).join("")}</div>
-        ${sections}
+        <div class="group-head"><h3>${esc(g.label)}</h3><span class="muted small">${visible.length}銘柄</span></div>
+        <div class="board">${cols}</div>
       </div>`;
     })
     .join("");
@@ -233,25 +241,27 @@ function renderStocks() {
   $("no-results").hidden = shown > 0;
 }
 
+const PALETTE = ["#2f5fd0", "#0f8a9a", "#6b7280", "#7c4dcc", "#e0702a", "#c2417a", "#3d8b37", "#b08900"];
+
 function renderChart() {
   if (!window.Chart) return;
   const { settings } = data;
   const css = getComputedStyle(document.documentElement);
   const v = (name) => css.getPropertyValue(name).trim();
-  const palette = ["#4c6ef5", "#e8590c", "#2b8a3e", "#ae3ec9", "#c92a2a", "#0c8599", "#5c940d", "#868e96"];
 
-  const indices = data.series.filter((s) => s.group === "idx");
-  const labels = [...new Set(indices.flatMap((s) => s.rows.map((r) => r[0])))].filter((d) => d >= settings.yearStart).sort();
-  const datasets = indices.map((s, i) => {
-    const rows = s.rows.filter((r) => r[0] >= settings.yearStart);
+  const indices = analyzed.filter((a) => a.s.kind === "index");
+  const labels = [...new Set(indices.flatMap((a) => a.s.rows.map((r) => r[0])))].filter((d) => d >= settings.yearStart).sort();
+  const datasets = indices.map((a, i) => {
+    const rows = a.s.rows.filter((r) => r[0] >= settings.yearStart);
     const base = rows[0][2];
     const byDate = new Map(rows.map((r) => [r[0], (r[2] / base) * 100]));
     return {
-      label: s.name,
+      label: a.s.name,
       data: labels.map((d) => byDate.get(d) ?? null),
-      borderColor: palette[i % palette.length],
-      backgroundColor: palette[i % palette.length],
-      borderWidth: 1.6,
+      borderColor: PALETTE[i % PALETTE.length],
+      backgroundColor: PALETTE[i % PALETTE.length],
+      borderWidth: 1.8,
+      borderDash: a.s.market === "JP" ? [5, 4] : [],
       pointRadius: 0,
       pointHoverRadius: 3,
       spanGaps: true,
@@ -271,13 +281,14 @@ function renderChart() {
       ctx.fillStyle = v("--band");
       ctx.fillRect(x0, chartArea.top, x1 - x0, chartArea.bottom - chartArea.top);
       ctx.fillStyle = v("--muted");
-      ctx.font = "11px sans-serif";
+      ctx.font = "bold 11px sans-serif";
       ctx.textAlign = "center";
       ctx.fillText(settings.refLabel, (x0 + x1) / 2, chartArea.top + 12);
       ctx.restore();
     },
   };
 
+  const hidden = new Set(chart ? chart.data.datasets.filter((_, i) => !chart.isDatasetVisible(i)).map((d) => d.label) : []);
   chart?.destroy();
   chart = new Chart($("index-chart"), {
     type: "line",
@@ -299,7 +310,7 @@ function renderChart() {
         y: { grid: { color: v("--border") }, ticks: { color: v("--muted") } },
       },
       plugins: {
-        legend: { position: "bottom", labels: { color: v("--text"), boxWidth: 12, boxHeight: 2 } },
+        legend: { display: false },
         tooltip: {
           itemSort: (a, b) => b.parsed.y - a.parsed.y,
           callbacks: {
@@ -310,14 +321,28 @@ function renderChart() {
       },
     },
   });
-  $("chart-note").textContent = `${fmtDateLong(settings.yearStart).replace(/1月1日$/, "")}年初〜${fmtDateLong(data.asOf).replace(/^\d+年/, "")}の日次終値を年初の終値＝100として比較。網掛けは${settings.refLabel}（比較する期間）。凡例をクリックすると表示を切り替えられます。`;
+  datasets.forEach((d, i) => hidden.has(d.label) && chart.setDatasetVisibility(i, false));
+  chart.update();
+
+  // 凡例：年初来の騰落率つき。クリックで表示を切り替える
+  $("chart-legend-title").textContent = `${fmtMonthDay(data.asOf)}の年初来騰落率`;
+  $("chart-legend").innerHTML = indices.map((a, i) => {
+    const color = PALETTE[i % PALETTE.length];
+    const dash = a.s.market === "JP" ? "dashed" : "solid";
+    return `<button type="button" class="legend-item" data-index="${i}" aria-pressed="${chart.isDatasetVisible(i)}">
+      <span class="legend-line" style="border-top:2px ${dash} ${color}"></span>
+      <span class="legend-name">${esc(a.s.name)}</span>
+      <b class="num" style="color:${color}">${a.ytdChange >= 0 ? "+" : ""}${a.ytdChange.toFixed(2)}%</b>
+    </button>`;
+  }).join("");
+  $("chart-note").textContent = `${fmtDateLong(settings.yearStart).replace(/1月1日$/, "")}年初〜${fmtMonthDay(data.asOf)}の日次終値を、年初の終値＝100として比較。実線＝米国、点線＝日本。網掛けは${settings.refLabel}。`;
 }
 
 function renderMethod() {
   const { settings } = data;
   const stocks = analyzed.filter((a) => a.s.kind === "stock").length;
   $("method").innerHTML = `
-    <p>${esc(settings.refLabel)}タブでは ${fmtDateLong(settings.refStart)}〜${fmtDateLong(settings.refEnd).replace(/^\d+年/, "")} の日中高値の最大値、年初来タブでは年初から比較日の前営業日までの日中高値の最大値を100%とし、比較日（${fmtDateLong(data.asOf)}）の終値と比べています。配当込みのリターンではありません。</p>
+    <p>${esc(settings.refLabel)}タブでは ${fmtDateLong(settings.refStart)}〜${fmtMonthDay(settings.refEnd)} の日中高値の最大値、年初来タブでは年初から比較日の前営業日までの日中高値の最大値を100%とし、比較日（${fmtDateLong(data.asOf)}）の終値と比べています。配当込みのリターンではありません。</p>
     <p>分類は丸める前の値で判定します。100%超は「突破済み」、95%以上100%以下は「近い」、90%以上95%未満は「中間」、90%未満は「遠い」です。100%ちょうどは突破に含めません。</p>
     <p>対象は日米のAI・半導体・データセンター関連から選んだ${stocks}銘柄と主要指数です。市場全体を網羅するものではありません。</p>
     <p>${data.isDummy ? "<strong>現在表示しているのはプログラムで生成したダミーデータです。</strong>" : ""}日付と価格は各市場の現地基準です。</p>`;
@@ -326,7 +351,7 @@ function renderMethod() {
 
 function renderAll() {
   renderHeader();
-  renderIndices();
+  renderIndexBars();
   renderStocks();
 }
 
@@ -346,7 +371,6 @@ async function main() {
   $("asof").textContent = `${fmtDateLong(data.asOf)} 終値`;
   $("dummy-banner").hidden = !data.isDummy;
 
-  renderChips();
   renderAll();
   renderChart();
   renderMethod();
@@ -355,15 +379,18 @@ async function main() {
     b.addEventListener("click", () => { state.mode = b.dataset.mode; renderAll(); });
   }
   $("search").addEventListener("input", (e) => { state.query = e.target.value; renderStocks(); });
-  $("status-chips").addEventListener("click", (e) => {
-    const id = e.target.closest(".chip")?.dataset.status;
-    if (!id) return;
-    state.statuses.has(id) ? state.statuses.delete(id) : state.statuses.add(id);
-    renderChips();
-    renderStocks();
+  $("chart-legend").addEventListener("click", (e) => {
+    const btn = e.target.closest(".legend-item");
+    if (!btn) return;
+    const i = Number(btn.dataset.index);
+    const visible = !chart.isDatasetVisible(i);
+    chart.setDatasetVisibility(i, visible);
+    chart.update();
+    btn.setAttribute("aria-pressed", String(visible));
   });
-  $("expand-all").addEventListener("click", () => document.querySelectorAll("#stock-groups details.row").forEach((d) => (d.open = true)));
-  $("collapse-all").addEventListener("click", () => document.querySelectorAll("#stock-groups details.row").forEach((d) => (d.open = false)));
+  const setAll = (open) => document.querySelectorAll("#stock-groups details.item").forEach((d) => (d.open = open));
+  $("expand-all").addEventListener("click", () => setAll(true));
+  $("collapse-all").addEventListener("click", () => setAll(false));
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", renderChart);
 }
 

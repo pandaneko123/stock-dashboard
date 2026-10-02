@@ -35,34 +35,44 @@
 
     <section class="formula" id="formula" aria-live="polite"></section>
 
-    <section class="card">
+    <section>
       <div class="section-head">
         <h2>主要指数の年初来パフォーマンス</h2>
-        <span class="muted">年初の終値 = 100</span>
+        <span class="muted small">年初の終値 = 100</span>
       </div>
       <p class="muted small" id="chart-note"></p>
-      <div class="chart-wrap"><canvas id="index-chart" aria-label="主要指数の年初来推移チャート" role="img"></canvas></div>
+      <div class="card chart-card">
+        <div class="chart-wrap"><canvas id="index-chart" aria-label="主要指数の年初来推移チャート" role="img"></canvas></div>
+      </div>
+      <p class="legend-title" id="chart-legend-title"></p>
+      <div class="legend" id="chart-legend" role="group" aria-label="指数の表示切り替え"></div>
     </section>
 
     <section>
       <div class="section-head">
-        <h2>主要指数</h2>
+        <div>
+          <h2 id="index-bars-title">主要指数の現在位置</h2>
+          <p class="muted small" id="index-bars-note"></p>
+        </div>
       </div>
-      <div class="rows" id="index-rows"></div>
+      <div class="card bars" id="index-bars"></div>
+      <p class="muted small hint">指数名を押すと、終値・高値・推移を確認できます。</p>
     </section>
 
     <section>
       <div class="section-head">
         <h2>個別株の現在位置</h2>
+        <span class="muted small" id="stock-total"></span>
+      </div>
+      <div class="summary" id="status-summary"></div>
+      <div class="toolbar">
+        <input type="search" id="search" placeholder="銘柄名・コードで検索（例：NVDA、東京エレクトロン）" aria-label="銘柄を検索">
         <div class="tools">
           <button type="button" class="ghost" id="expand-all">すべて展開</button>
           <button type="button" class="ghost" id="collapse-all">すべて閉じる</button>
         </div>
       </div>
-      <div class="filters">
-        <input type="search" id="search" placeholder="銘柄名・コードで検索（例：NVDA、東京エレクトロン）" aria-label="銘柄を検索">
-        <div class="chips" id="status-chips" role="group" aria-label="分類で絞り込み"></div>
-      </div>
+      <p class="muted small hint">銘柄名を押すと、価格と突破履歴を確認できます。</p>
       <div id="stock-groups"></div>
       <p class="empty" id="no-results" hidden>条件に合う銘柄がありません。</p>
     </section>

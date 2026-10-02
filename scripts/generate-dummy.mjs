@@ -54,7 +54,7 @@ const series = universe.series.map((item) => {
   const lastRef = refIdx.at(-1);
   if (lastRef !== undefined && lastRef < days.length - 1) {
     const refHigh = Math.max(...refIdx.map((i) => closes[i])) * (1 + vol * 0.4);
-    const target = isIndex ? 0.92 + rand() * 0.1 : 0.62 + rand() * 0.58;
+    const target = isIndex ? 0.92 + rand() * 0.1 : Math.min(1.25, Math.max(0.6, 0.99 + normal(rand) * 0.08));
     const factor = (refHigh * target) / closes.at(-1);
     const n = days.length - 1 - lastRef;
     for (let k = 1; k <= n; k++) closes[lastRef + k] *= factor ** (k / n);
