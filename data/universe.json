@@ -1,0 +1,68 @@
+{
+  "settings": {
+    "title": "高値の奪還率",
+    "subtitle": "AI・半導体株と主要指数",
+    "yearStart": "2026-01-01",
+    "refStart": "2026-08-01",
+    "refEnd": "2026-08-31",
+    "refLabel": "8月"
+  },
+  "groups": [
+    { "id": "idx", "label": "主要指数", "kind": "index" },
+    { "id": "us-hyper", "label": "米国 ハイパースケーラー", "kind": "stock" },
+    { "id": "us-semi", "label": "米国 半導体", "kind": "stock" },
+    { "id": "us-dc", "label": "米国 データセンター・ネットワーク", "kind": "stock" },
+    { "id": "jp-semi", "label": "日本 半導体・製造装置", "kind": "stock" },
+    { "id": "jp-ai", "label": "日本 AI・通信", "kind": "stock" }
+  ],
+  "series": [
+    { "symbol": "SPX", "name": "S&P500", "market": "US", "group": "idx", "unit": "pt", "base": 5900 },
+    { "symbol": "COMP", "name": "NASDAQ総合", "market": "US", "group": "idx", "unit": "pt", "base": 19300 },
+    { "symbol": "DJI", "name": "NYダウ", "market": "US", "group": "idx", "unit": "pt", "base": 42500 },
+    { "symbol": "SOX", "name": "SOX（半導体）", "market": "US", "group": "idx", "unit": "pt", "base": 5000 },
+    { "symbol": "N225", "name": "日経平均", "market": "JP", "group": "idx", "unit": "pt", "base": 39500 },
+    { "symbol": "TOPIX", "name": "TOPIX", "market": "JP", "group": "idx", "unit": "pt", "base": 2750 },
+
+    { "symbol": "MSFT", "name": "マイクロソフト", "market": "US", "group": "us-hyper" },
+    { "symbol": "GOOGL", "name": "アルファベット", "market": "US", "group": "us-hyper" },
+    { "symbol": "AMZN", "name": "アマゾン・ドット・コム", "market": "US", "group": "us-hyper" },
+    { "symbol": "META", "name": "メタ・プラットフォームズ", "market": "US", "group": "us-hyper" },
+    { "symbol": "ORCL", "name": "オラクル", "market": "US", "group": "us-hyper" },
+
+    { "symbol": "NVDA", "name": "エヌビディア", "market": "US", "group": "us-semi" },
+    { "symbol": "AMD", "name": "AMD", "market": "US", "group": "us-semi" },
+    { "symbol": "AVGO", "name": "ブロードコム", "market": "US", "group": "us-semi" },
+    { "symbol": "TSM", "name": "TSMC（ADR）", "market": "US", "group": "us-semi" },
+    { "symbol": "MU", "name": "マイクロン・テクノロジー", "market": "US", "group": "us-semi" },
+    { "symbol": "ASML", "name": "ASML（ADR）", "market": "US", "group": "us-semi" },
+    { "symbol": "ARM", "name": "アーム・ホールディングス", "market": "US", "group": "us-semi" },
+    { "symbol": "INTC", "name": "インテル", "market": "US", "group": "us-semi" },
+    { "symbol": "QCOM", "name": "クアルコム", "market": "US", "group": "us-semi" },
+    { "symbol": "AMAT", "name": "アプライド・マテリアルズ", "market": "US", "group": "us-semi" },
+    { "symbol": "LRCX", "name": "ラムリサーチ", "market": "US", "group": "us-semi" },
+    { "symbol": "KLAC", "name": "KLA", "market": "US", "group": "us-semi" },
+
+    { "symbol": "VRT", "name": "バーティブ", "market": "US", "group": "us-dc" },
+    { "symbol": "ANET", "name": "アリスタ・ネットワークス", "market": "US", "group": "us-dc" },
+    { "symbol": "EQIX", "name": "エクイニクス", "market": "US", "group": "us-dc" },
+    { "symbol": "DLR", "name": "デジタル・リアルティ", "market": "US", "group": "us-dc" },
+    { "symbol": "SMCI", "name": "スーパー・マイクロ・コンピューター", "market": "US", "group": "us-dc" },
+    { "symbol": "DELL", "name": "デル・テクノロジーズ", "market": "US", "group": "us-dc" },
+
+    { "symbol": "8035", "name": "東京エレクトロン", "market": "JP", "group": "jp-semi" },
+    { "symbol": "6857", "name": "アドバンテスト", "market": "JP", "group": "jp-semi" },
+    { "symbol": "6920", "name": "レーザーテック", "market": "JP", "group": "jp-semi" },
+    { "symbol": "7735", "name": "SCREEN", "market": "JP", "group": "jp-semi" },
+    { "symbol": "6146", "name": "ディスコ", "market": "JP", "group": "jp-semi" },
+    { "symbol": "4063", "name": "信越化学工業", "market": "JP", "group": "jp-semi" },
+    { "symbol": "6963", "name": "ローム", "market": "JP", "group": "jp-semi" },
+    { "symbol": "6526", "name": "ソシオネクスト", "market": "JP", "group": "jp-semi" },
+
+    { "symbol": "9984", "name": "ソフトバンクグループ", "market": "JP", "group": "jp-ai" },
+    { "symbol": "9434", "name": "ソフトバンク", "market": "JP", "group": "jp-ai" },
+    { "symbol": "6702", "name": "富士通", "market": "JP", "group": "jp-ai" },
+    { "symbol": "6701", "name": "NEC", "market": "JP", "group": "jp-ai" },
+    { "symbol": "9432", "name": "NTT", "market": "JP", "group": "jp-ai" },
+    { "symbol": "5802", "name": "住友電気工業", "market": "JP", "group": "jp-ai" }
+  ]
+}

@@ -1,0 +1,6 @@
+# APIキーなどの秘密情報（絶対にコミットしない）
+.env
+.env.*
+
+node_modules/
+.claude/
